@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GRANT Liquidition Form</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" />
+
+  <style>
+  
+    .table-input {
+      width: 100%;
+      border: none;
+      background: transparent;
+    }
+    .table-input:focus {
+      outline: none;
+      box-shadow: none;
+    }
+    
+    @media (max-width: 768px) {
+      .table {
+        font-size: 0.85rem;
+      }
+      .table th, .table td {
+        padding: 0.4rem;
+      }
+      .table-input {
+        font-size: 0.85rem;
+      }
+      h3 {
+        font-size: 1.25rem;
+      }
+    }
+    
+    @media (max-width: 576px) {
+      .table {
+        font-size: 0.75rem;
+      }
+      .table th, .table td {
+        padding: 0.3rem;
+      }
+      .table-input {
+        font-size: 0.75rem;
+      }
+    }
+
+    .progress {
+      height: 20px;
+      border-radius: 10px;
+    }
+    .progress-bar {
+      transition: width 0.3s ease;
+    }
+    
+    .table-responsive {
+      overflow-x: auto;
+    }
+  </style>
+</head>
+
+<body class="bg-light py-4">
+
+<div class="container-fluid px-3 px-md-4">
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h3 class="card-title mb-3 text-center text-md-start">GRANT Liquidation Form</h3>
+
+      <form id="reqForm">
+        <div class="row mb-2">
+          <div class="col-12 col-md-6 mb-2 mb-md-0">
+            <label class="form-label">Name</label>
+            <input class="form-control" id="branch" required />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Date Created</label>
+            <input type="date" class="form-control" id="date" required />
+          </div>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label">Purpose for Budget</label>
+          <textarea class="form-control" id="budget" required ></textarea>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Amount of Withdrawal</label>
+          <input type="text" class="form-control" id="withdrawal" required placeholder="0.00" />
+        </div>
+
+          <div class="d-flex gap-2 mb-2 flex-wrap">
+            <button type="button" class="btn btn-primary btn-sm" onclick="addRow()">
+              <i class="bi bi-plus-lg"></i> Add Item
+            </button>
+            <button type="button" class="btn btn-danger btn-sm" onclick="removeSelectedRows()">
+              <i class="bi bi-trash"></i> Remove Selected
+            </button>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-bordered table-sm">
+              <thead class="table-light">
+                <tr> <th style="width: 40px; text-align: center;">
+                  <input type="checkbox" class="form-check-input" id="selectAll" onclick="toggleAll(this)">
+                  </th>
+                  <th style="width: 100px">Date</th> 
+                  <th>Description</th> 
+                  <th style="width: 120px">Amount</th> 
+                  </tr>
+              </thead>
+              <tbody id="itemsBody"></tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="3" class="text-end"><strong>Total Amount</strong></td>
+                  <td><input id="total" class="form-control table-input" readonly value="0.00"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Excess:</label>
+            <input id="excess" class="form-control table-input" readonly value="0.00"/>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Submit & Create PDF</button>
+          <button type="button" class="btn btn-secondary" onclick="resetForm()">Reset</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- PROCESS MODAL -->
+<div class="modal fade" id="processModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content text-center">
+      <div class="modal-header">
+        <h5 class="modal-title w-100">Processing</h5>
+      </div>
+      <div class="modal-body" id="modalContent"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  addRow();
+  setMaxDate();
+});
+
+function setMaxDate() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('date').max = today;
+  document.querySelectorAll('.tdate').forEach(input => {
+    input.max = today;
+  });
+}
+
+const input = document.getElementById('withdrawal');
+
+// 1. Format thousands separator while typing
+input.addEventListener('input', function (e) {
+  // Remove all non-digit characters except the decimal point
+  let value = e.target.value.replace(/[^\d.]/g, '');
+  
+  // Prevent multiple decimal points
+  const parts = value.split('.');
+  if (parts.length > 2) value = parts[0] + '.' + parts.slice(1).join('');
+
+  let [integer, decimal] = value.split('.');
+
+  // Add commas to the integer part
+  if (integer) {
+    integer = parseInt(integer, 10).toLocaleString('en-US');
+  }
+  
+  // Limit decimal part to 2 digits while typing
+  if (decimal !== undefined) decimal = decimal.substring(0, 2);
+
+  e.target.value = decimal !== undefined ? `${integer}.${decimal}` : integer;
+});
+
+// 2. Force exactly two decimal places when the user leaves the field (blur)
+input.addEventListener('blur', function (e) {
+  let value = e.target.value.replace(/,/g, ''); // Remove commas for parsing
+  if (!value) return;
+
+  const numericValue = parseFloat(value);
+  if (isNaN(numericValue)) {
+    e.target.value = "";
+    return;
+  }
+
+  // Format to exactly 2 decimal places with thousands separators
+  e.target.value = numericValue.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+});
+
+document.addEventListener('input', function (e) {
+  if (e.target.classList.contains('amount')) {
+    let input = e.target;
+    
+    // 1. Remove all non-numeric characters except the decimal point
+    let value = input.value.replace(/[^\d.]/g, '');
+    
+    // 2. Split into integer and decimal parts
+    let [integer, decimal] = value.split('.');
+
+    // 3. Format integer part with thousands separator
+    if (integer) {
+      integer = parseInt(integer, 10).toLocaleString('en-US');
+    }
+
+    // 4. Limit decimal part to 2 digits while typing
+    if (decimal !== undefined) {
+      decimal = decimal.substring(0, 2);
+    }
+
+    // 5. Update the display value
+    input.value = decimal !== undefined ? `${integer}.${decimal}` : integer;
+  }
+});
+
+// 6. Force .00 on blur (when user clicks away)
+document.addEventListener('focusout', function (e) {
+  if (e.target.classList.contains('amount')) {
+    let val = e.target.value.replace(/,/g, '');
+    if (val !== "" && !isNaN(val)) {
+      e.target.value = parseFloat(val).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+  }
+});
+
+
+function addRow() {
+  const tr = document.createElement("tr");
+  const today = new Date().toISOString().split('T')[0];
+  tr.innerHTML = `
+    <td class="text-center"><input type="checkbox" class="form-check-input row-select"></td>
+    <td><input type="date" class="form-control table-input tdate" max="${today}" onchange="sortTableByDate()" required ></td>
+    <td><input class="form-control table-input desc" placeholder="Type here!" required></td>
+    <td><input class="form-control table-input amount" oninput="recalcRow(this)" placeholder="0.00" required /></td>
+  `;
+  document.getElementById("itemsBody").appendChild(tr);
+}
+
+function sortTableByDate() {
+  const tbody = document.getElementById("itemsBody");
+  const rows = Array.from(tbody.querySelectorAll("tr"));
+  
+  rows.sort((a, b) => {
+    const dateA = a.querySelector(".tdate").value || "9999-99-99";
+    const dateB = b.querySelector(".tdate").value || "9999-99-99";
+    return new Date(dateA) - new Date(dateB);
+  });
+  
+  rows.forEach(row => tbody.appendChild(row));
+}
+
+function toggleAll(source) {
+  document.querySelectorAll(".row-select").forEach(cb => cb.checked = source.checked);
+}
+
+function removeSelectedRows() {
+  document.querySelectorAll(".row-select:checked").forEach(cb => cb.closest("tr").remove());
+  recalcTotal();
+}
+
+// 1. Core calculation function
+function recalcRow(el) {
+  recalcTotal();
+}
+
+// 2. Aggregate calculation function
+function recalcTotal() {
+  let totalSum = 0;
+  
+  // Sum all row totals
+  document.querySelectorAll(".amount").forEach(a => {
+    totalSum += parseFloat(a.value.replace(/,/g, '')) || 0;
+  });
+  
+  // Update Total field
+  document.getElementById("total").value = formatMoney(totalSum);
+
+  // Calculate Excess: Total - Withdrawal
+  const withdrawal = parseFloat(document.getElementById("withdrawal").value.replace(/,/g, '')) || 0;
+  const excessValue = withdrawal - totalSum;
+
+  // Update Excess field
+  const excessEl = document.getElementById("excess");
+  excessEl.value = formatMoney(excessValue);
+  excessEl.style.color = excessValue < 0 ? 'red' : '';
+}
+
+// 3. Helper: Format number to money string
+function formatMoney(number) {
+  return number.toLocaleString('en-US', { 
+    minimumFractionDigits: 2, 
+    maximumFractionDigits: 2 
+  });
+}
+
+// 4. Live Input Masking (Commas as you type)
+document.addEventListener('input', function (e) {
+  if (e.target.classList.contains('amount') || e.target.id === 'withdrawal') {
+    let value = e.target.value.replace(/[^\d.]/g, '');
+    let [integer, decimal] = value.split('.');
+
+    if (integer) integer = parseInt(integer, 10).toLocaleString('en-US');
+    if (decimal !== undefined) decimal = decimal.substring(0, 2);
+
+    e.target.value = decimal !== undefined ? `${integer}.${decimal}` : integer;
+    
+    // Trigger calculation updates
+    if (e.target.id === 'withdrawal') recalcTotal();
+    if (e.target.classList.contains('amount')) recalcTotal();
+  }
+});
+
+// 5. Blur Event: Ensure two decimals on focus out (e.g., 1,000 becomes 1,000.00)
+document.addEventListener('focusout', function (e) {
+  if (e.target.classList.contains('amount') || e.target.id === 'withdrawal') {
+    let val = parseFloat(e.target.value.replace(/,/g, '')) || 0;
+    e.target.value = formatMoney(val);
+  }
+});
+
+
+
+function collectData() {
+  const items = [];
+  document.querySelectorAll("#itemsBody tr").forEach(r => {
+    const amount = r.querySelector(".amount").value;
+    if (amount) {
+      items.push({
+        tdate: r.querySelector(".tdate").value,
+        description: r.querySelector(".desc").value,
+        amount: amount
+      });
+    }
+  });
+
+  return {
+    branch: branch.value,
+    date: date.value,
+    budget: budget.value,
+    withdrawal: withdrawal.value,
+    total: total.value,
+    excess: excess.value,
+    items
+  };
+}
+
+document.getElementById("reqForm").addEventListener("submit", e => {
+  e.preventDefault();
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  let invalidDate = null;
+  document.querySelectorAll(".tdate").forEach(input => {
+    if (input.value) {
+      const selectedDate = new Date(input.value);
+      selectedDate.setHours(0, 0, 0, 0);
+      if (selectedDate > today) {
+        invalidDate = input;
+      }
+    }
+  });
+
+  if (invalidDate) {
+    alert("Date cannot be tomorrow or in the future. Please select today or an earlier date.");
+    invalidDate.focus();
+    return;
+  }
+
+  const mainDate = document.getElementById('date');
+  if (mainDate.value) {
+    const selectedDate = new Date(mainDate.value);
+    selectedDate.setHours(0, 0, 0, 0);
+    if (selectedDate > today) {
+      alert("Date cannot be tomorrow or in the future. Please select today or an earlier date.");
+      mainDate.focus();
+      return;
+    }
+  }
+
+  const data = collectData();
+  if (!data.items.length) return alert("Please add at least one item.");
+
+  const excessVal = parseFloat(document.getElementById("excess").value.replace(/,/g, '')) || 0;
+  if (excessVal < 0) {
+    alert("Warning: Excess amount is negative. Please review your amount input.");
+    return;
+  }
+
+  const modal = new bootstrap.Modal(processModal);
+  modalContent.innerHTML = `
+    <div class="spinner-grow text-primary" style="width: 3rem; height: 3rem;" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-3">Saving and generating PDF...</p>
+    <div class="progress" style="height: 8px;">
+      <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" id="bar" style="width:0%"></div>
+    </div>
+  `;
+  modal.show();
+
+  let p = 0;
+  const timer = setInterval(() => {
+    p = Math.min(p + 15, 85);
+    bar.style.width = p + "%";
+  }, 150);
+
+  google.script.run
+    .withSuccessHandler(url => {
+      clearInterval(timer);
+      bar.style.width = "100%";
+      bar.classList.remove("progress-bar-animated");
+      bar.classList.replace("bg-success", "bg-primary");
+
+      setTimeout(() => {
+        modalContent.innerHTML = `
+          <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+          <h5 class="mt-3 text-success">Saved Successfully!</h5>
+          <button class="btn btn-success mt-2" onclick="window.open('${url}')">Open PDF</button>
+        `;
+        resetForm();
+      }, 300);
+    })
+    .withFailureHandler(err => {
+      clearInterval(timer);
+      modalContent.innerHTML = `<p class="text-danger">${err.message}</p>`;
+    })
+    .saveAndCreatePdf(data);
+});
+
+function resetForm() {
+  reqForm.reset();
+  itemsBody.innerHTML = "";
+  addRow();
+  total.value = "0.00";
+}
+</script>
+
+</body>
+</html>
+
+
