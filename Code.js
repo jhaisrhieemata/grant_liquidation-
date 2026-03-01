@@ -42,8 +42,8 @@ function saveAndCreatePdf(data) {
     sheet = ss.insertSheet(branchSheetName);
     sheet.appendRow([
       'Timestamp', 'Name/Branch', 'Date Created', 'Purpose for Budget', 'Amount of Withdrawal',
-      'Receipt date', 'Description', 'Total Amount',
-      'Total', 'Excess', 'PDF URL'
+      'Receipt date', 'Description', 'Amount',
+      'Total Amount', 'Excess', 'PDF URL'
     ]);
   }
 
