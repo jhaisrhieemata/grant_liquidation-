@@ -7,6 +7,8 @@
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net">
+  <script src="https://cdn.jsdelivr.net"></script>
 
   <style>
   
@@ -77,7 +79,9 @@
           <div class="col-12 col-md-6">
             <label class="form-label">Date Created</label>
             <input type="date" class="form-control" id="date" required />
+            
           </div>
+          
         </div>
 
         <div class="mb-2">
@@ -97,6 +101,9 @@
             <button type="button" class="btn btn-danger btn-sm" onclick="removeSelectedRows()">
               <i class="bi bi-trash"></i> Remove Selected
             </button>
+            <button type="button" class="btn btn-warning btn-sm" id="undoBtn" onclick="undoRemove()" style="display: none;">
+              <i class="bi bi-arrow-counterclockwise"></i> Undo
+            </button>
           </div>
 
           <div class="table-responsive">
@@ -107,7 +114,7 @@
                   </th>
                   <th style="width: 100px">Date</th> 
                   <th>Description</th> 
-                  <th style="width: 120px">Amount</th> 
+                  <th style="width: 120px; text-align: center;">Amount</th>
                   </tr>
               </thead>
               <tbody id="itemsBody"></tbody>
@@ -155,8 +162,25 @@ document.addEventListener("DOMContentLoaded", () => {
   setMaxDate();
 });
 
+
+function getTodayMMDDYYYY() {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${mm}/${dd}/${yyyy}`;
+}
+
+function getTodayYYYYMMDD() {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function setMaxDate() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayYYYYMMDD();
   document.getElementById('date').max = today;
   document.querySelectorAll('.tdate').forEach(input => {
     input.max = today;
@@ -244,14 +268,25 @@ document.addEventListener('focusout', function (e) {
 });
 
 
+function formatDateDDMMYYYY(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${mm}/${dd}/${yyyy}`;
+}
+
 function addRow() {
   const tr = document.createElement("tr");
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayYYYYMMDD();
   tr.innerHTML = `
     <td class="text-center"><input type="checkbox" class="form-check-input row-select"></td>
-    <td><input type="date" class="form-control table-input tdate" max="${today}" onchange="sortTableByDate()" required ></td>
+    <td><input type="date" class="form-control table-input tdate" max="${today}" onchange="sortTableByDate()" required></td>
     <td><input class="form-control table-input desc" placeholder="Type here!" required></td>
-    <td><input class="form-control table-input amount" oninput="recalcRow(this)" placeholder="0.00" required /></td>
+    <td class="text-center"><input class="form-control table-input amount" oninput="recalcRow(this)" placeholder="0.00" required /></td>
+  </td>
   `;
   document.getElementById("itemsBody").appendChild(tr);
 }
@@ -261,8 +296,8 @@ function sortTableByDate() {
   const rows = Array.from(tbody.querySelectorAll("tr"));
   
   rows.sort((a, b) => {
-    const dateA = a.querySelector(".tdate").value || "9999-99-99";
-    const dateB = b.querySelector(".tdate").value || "9999-99-99";
+    const dateA = a.querySelector(".tdate").value || "99-99-9999";
+    const dateB = b.querySelector(".tdate").value || "99-99-9999";
     return new Date(dateA) - new Date(dateB);
   });
   
@@ -273,8 +308,32 @@ function toggleAll(source) {
   document.querySelectorAll(".row-select").forEach(cb => cb.checked = source.checked);
 }
 
+let removedRows = [];
+
 function removeSelectedRows() {
-  document.querySelectorAll(".row-select:checked").forEach(cb => cb.closest("tr").remove());
+  const checkedRows = document.querySelectorAll(".row-select:checked");
+  if (checkedRows.length === 0) return;
+  
+  removedRows = [];
+  checkedRows.forEach(cb => {
+    const row = cb.closest("tr");
+    removedRows.push(row.cloneNode(true));
+    row.remove();
+  });
+  
+  document.getElementById("undoBtn").style.display = "inline-flex";
+  recalcTotal();
+}
+
+function undoRemove() {
+  if (removedRows.length === 0) return;
+  
+  const tbody = document.getElementById("itemsBody");
+  removedRows.forEach(row => {
+    tbody.appendChild(row);
+  });
+  removedRows = [];
+  document.getElementById("undoBtn").style.display = "none";
   recalcTotal();
 }
 
@@ -412,7 +471,7 @@ document.getElementById("reqForm").addEventListener("submit", e => {
     <div class="spinner-grow text-primary" style="width: 3rem; height: 3rem;" role="status">
       <span class="visually-hidden">Loading...</span>
     </div>
-    <p class="mt-3">Saving and generating PDF...</p>
+    <p class="mt-3">Saving...</p>
     <div class="progress" style="height: 8px;">
       <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" id="bar" style="width:0%"></div>
     </div>
@@ -433,12 +492,32 @@ document.getElementById("reqForm").addEventListener("submit", e => {
       bar.classList.replace("bg-success", "bg-primary");
 
       setTimeout(() => {
+        document.querySelectorAll("#itemsBody tr").forEach(row => {
+          const dateInput = row.querySelector(".tdate");
+          const pdfCell = row.querySelector(".pdf-link-cell");
+          if (dateInput.value) {
+            dateInput.value = formatDateDDMMYYYY(dateInput.value);
+            dateInput.setAttribute("readonly", true);
+            dateInput.style.border = "none";
+            dateInput.style.background = "transparent";
+          }
+          row.querySelector(".desc").setAttribute("readonly", true);
+          row.querySelector(".desc").style.border = "none";
+          row.querySelector(".desc").style.background = "transparent";
+          row.querySelector(".amount").setAttribute("readonly", true);
+          row.querySelector(".amount").style.border = "none";
+          row.querySelector(".amount").style.background = "transparent";
+          row.querySelector(".amount").style.textAlign = "center";
+          row.querySelector(".amount").style.width = "100%";
+          row.querySelector(".row-select").closest("td").innerHTML = '<input type="checkbox" class="form-check-input" disabled>';
+        });
+        
         modalContent.innerHTML = `
           <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
           <h5 class="mt-3 text-success">Saved Successfully!</h5>
-          <button class="btn btn-success mt-2" onclick="window.open('${url}')">Open PDF</button>
-        `;
-        resetForm();
+      <button class="btn btn-success mt-2" onclick="window.open('${url}')">Open PDF</button>
+    `;
+    resetForm();
       }, 300);
     })
     .withFailureHandler(err => {
@@ -454,6 +533,8 @@ function resetForm() {
   addRow();
   total.value = "0.00";
 }
+
+
 </script>
 
 </body>
