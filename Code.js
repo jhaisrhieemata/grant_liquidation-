@@ -3,14 +3,14 @@ const TEMPLATE_ID = '1hdx0luh-MR9p4hccGcMCeMWn_02eQhgTWZIrEzlqnUE'; // Converted
 const FOLDER_ID = '1-2plkS_X6qIjwISXAMU38lY31z1Qp_7d'; // optional: Google Drive folder for PDFs
 const SHEET_FILE_ID = '1zHSS4R47kz7qXNIr7nlPn5l4AapzKzb15lvDkywfjqc';
 
-function formatDateDMY(dateStr) {
+function formatDateMDY(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr;
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const yyyy = d.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
+  return `${mm}/${dd}/${yyyy}`;
 }
 
 
@@ -33,13 +33,14 @@ function saveAndCreatePdf(data) {
     ss = SpreadsheetApp.create('Grant Liquidation Database');
   }
 
-  // Use the branch name as the sheet name
-  const branchSheetName = data.branch.trim().toUpperCase();
-  let sheet = ss.getSheetByName(branchSheetName);
+  // Use the year from data.date as the sheet name
+  const year = data.date ? new Date(data.date).getFullYear() : new Date().getFullYear();
+  const yearSheetName = String(year);
+  let sheet = ss.getSheetByName(yearSheetName);
 
-  // If sheet for that branch doesn’t exist → create it
+  // If sheet for that year doesn't exist → create it
   if (!sheet) {
-    sheet = ss.insertSheet(branchSheetName);
+    sheet = ss.insertSheet(yearSheetName);
     sheet.appendRow([
       'Timestamp', 'Name/Branch', 'Date Created', 'Purpose for Budget', 'Amount of Withdrawal',
       'Receipt date', 'Description', 'Amount',
@@ -55,10 +56,10 @@ function saveAndCreatePdf(data) {
     sheet.appendRow([
       ts,
       data.branch || '',
-      formatDateDMY(data.date) || '',
+      formatDateMDY(data.date) || '',
       data.budget || '',
       data.withdrawal || '',
-      formatDateDMY(it.tdate) || '',
+      formatDateMDY(it.tdate) || '',
       it.description || '',
       it.amount || '',
       data.total || '',
@@ -74,7 +75,7 @@ function saveAndCreatePdf(data) {
 function createPdfFromTemplate(data, timestamp) {
   const templateFile = DriveApp.getFileById(TEMPLATE_ID);
   const copy = templateFile.makeCopy(
-  `Liquidation ${Utilities.formatDate(timestamp, Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss')}`
+  `Liquidation ${Utilities.formatDate(timestamp, Session.getScriptTimeZone(), 'MM/dd/yyyy HH:mm:ss')}`
 );
 
   const doc = DocumentApp.openById(copy.getId());
@@ -82,7 +83,7 @@ function createPdfFromTemplate(data, timestamp) {
 
   // === Replace placeholders ===
   body.replaceText('{{BRANCH}}', data.branch || '');
-  body.replaceText('{{DATE}}', formatDateDMY(data.date) || '');
+  body.replaceText('{{DATE}}', formatDateMDY(data.date) || '');
   body.replaceText('{{BUDGET}}', data.budget || '');
   body.replaceText('{{WITHDRAWAL}}', data.withdrawal || '');
   body.replaceText('{{TOTAL AMOUNT}}', data.total || '');
@@ -98,7 +99,7 @@ function createPdfFromTemplate(data, timestamp) {
     const tableData = [['Date', 'Description', 'Amount']];
     (data.items || []).forEach(it => {
       tableData.push([
-         formatDateDMY(it.tdate) || '',
+         formatDateMDY(it.tdate) || '',
         it.description || '',
         it.amount || ''
       ]);
